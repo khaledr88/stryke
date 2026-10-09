@@ -1,0 +1,27 @@
+rules_version = '2';
+
+// Images are public to read (they appear on the storefront) and only admins may
+// upload, replace or delete them. Uploads must be images under 8 MB.
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isAdmin() {
+      return request.auth != null && request.auth.token.admin == true;
+    }
+
+    function publicFolder(folder) {
+      return folder in ['products', 'categories', 'brands', 'clubs', 'collections', 'content'];
+    }
+
+    function validImage() {
+      return request.resource.size < 8 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp|avif)');
+    }
+
+    match /{folder}/{rest=**} {
+      allow read: if publicFolder(folder);
+      allow create, update: if isAdmin() && publicFolder(folder) && validImage();
+      allow delete: if isAdmin() && publicFolder(folder);
+    }
+  }
+}

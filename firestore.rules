@@ -1,0 +1,146 @@
+rules_version = '2';
+
+// STRYKE Firestore security rules.
+//
+// Principles:
+// - The public can read only published catalogue data and public storefront content.
+// - Orders, customer details, inventory logs and audit logs are admin-only reads.
+// - Orders, products and stock are written exclusively by Cloud Functions (Admin SDK),
+//   which validate input and calculate prices server-side. No client can write them.
+// - Admins (custom claim `admin: true`) may edit taxonomy, homepage content and
+//   store settings directly; writes are shape-checked here.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAdmin() {
+      return request.auth != null && request.auth.token.admin == true;
+    }
+
+    function isSlug(v) {
+      return v is string && v.matches('^[a-z0-9]+(-[a-z0-9]+)*$') && v.size() <= 90;
+    }
+
+    function isShortText(v, max) {
+      return v is string && v.size() <= max;
+    }
+
+    function isImageOrNull(v) {
+      return v == null || (v is map && v.url is string && v.url.size() <= 2048);
+    }
+
+    function stampedByAdmin() {
+      return request.resource.data.updatedBy == request.auth.uid
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function validTaxonomyBase() {
+      let d = request.resource.data;
+      return isShortText(d.name, 80) && d.name.size() > 0
+        && isSlug(d.slug)
+        && d.order is number
+        && d.visible is bool
+        && stampedByAdmin();
+    }
+
+    // ---------------------------------------------------------------- Catalogue
+
+    match /products/{productId} {
+      allow get: if resource.data.status == 'published' || isAdmin();
+      // Public list queries must constrain status == 'published'.
+      allow list: if resource.data.status == 'published' || isAdmin();
+      allow write: if false; // saveProduct / adjustStock / placeOrder Cloud Functions only
+    }
+
+    match /categories/{id} {
+      allow read: if resource.data.visible == true || isAdmin();
+      allow create, update: if isAdmin() && validTaxonomyBase()
+        && isShortText(request.resource.data.description, 600)
+        && isShortText(request.resource.data.navLabel, 30)
+        && request.resource.data.showInNav is bool
+        && isImageOrNull(request.resource.data.image);
+      allow delete: if isAdmin();
+    }
+
+    match /brands/{id} {
+      allow read: if resource.data.visible == true || isAdmin();
+      allow create, update: if isAdmin() && validTaxonomyBase()
+        && isImageOrNull(request.resource.data.logo)
+        && isImageOrNull(request.resource.data.image);
+      allow delete: if isAdmin();
+    }
+
+    match /clubs/{id} {
+      allow read: if resource.data.visible == true || isAdmin();
+      allow create, update: if isAdmin() && validTaxonomyBase()
+        && isShortText(request.resource.data.league, 60)
+        && isImageOrNull(request.resource.data.crest)
+        && request.resource.data.colors is list && request.resource.data.colors.size() == 2;
+      allow delete: if isAdmin();
+    }
+
+    match /collections/{id} {
+      allow read: if resource.data.visible == true || isAdmin();
+      allow create, update: if isAdmin()
+        && isShortText(request.resource.data.title, 80) && request.resource.data.title.size() > 0
+        && isSlug(request.resource.data.slug)
+        && request.resource.data.rule is map
+        && request.resource.data.visible is bool
+        && stampedByAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------- Storefront content
+
+    match /storeSettings/main {
+      // Public business information only (contact details, delivery fees, policies).
+      allow read: if true;
+      allow write: if isAdmin()
+        && request.resource.data.currency in ['USD', 'LBP']
+        && isShortText(request.resource.data.storeName, 60)
+        && request.resource.data.delivery.zones is list
+        && request.resource.data.delivery.zones.size() <= 30
+        && stampedByAdmin();
+    }
+
+    match /homepageContent/published {
+      allow read: if true;
+      allow write: if isAdmin() && request.resource.data.heroSlides is list && stampedByAdmin();
+    }
+
+    match /homepageContent/draft {
+      allow read, write: if isAdmin();
+    }
+
+    // -------------------------------------------------------- Private operations
+
+    match /orders/{orderId} {
+      // Customers never read orders back from Firestore: their receipt comes from the
+      // placeOrder function response. Phone numbers and addresses stay admin-only.
+      allow read: if isAdmin();
+      allow write: if false; // placeOrder / updateOrderStatus / addOrderNote only
+    }
+
+    match /inventoryMovements/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /adminAuditLogs/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /rateLimits/{id} {
+      allow read, write: if false;
+    }
+
+    match /orderRequests/{id} {
+      allow read, write: if false;
+    }
+
+    // Everything else is closed.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

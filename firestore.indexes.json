@@ -1,0 +1,68 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "orders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "orders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "searchTokens", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "products",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "publishedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "products",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "minVariantStock", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "inventoryMovements",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "productId", "order": "ASCENDING" },
+        { "fieldPath": "at", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": [
+    { "collectionGroup": "products", "fieldPath": "description", "indexes": [] },
+    { "collectionGroup": "products", "fieldPath": "variants", "indexes": [] },
+    { "collectionGroup": "products", "fieldPath": "images", "indexes": [] },
+    { "collectionGroup": "products", "fieldPath": "customization", "indexes": [] },
+    { "collectionGroup": "orders", "fieldPath": "items", "indexes": [] },
+    { "collectionGroup": "orders", "fieldPath": "delivery", "indexes": [] },
+    { "collectionGroup": "orders", "fieldPath": "internalNotes", "indexes": [] },
+    { "collectionGroup": "orders", "fieldPath": "statusHistory", "indexes": [] },
+    { "collectionGroup": "homepageContent", "fieldPath": "heroSlides", "indexes": [] },
+    { "collectionGroup": "homepageContent", "fieldPath": "promos", "indexes": [] },
+    {
+      "collectionGroup": "rateLimits",
+      "fieldPath": "expireAt",
+      "ttl": true,
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
+    },
+    {
+      "collectionGroup": "orderRequests",
+      "fieldPath": "expireAt",
+      "ttl": true,
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
+    }
+  ]
+}

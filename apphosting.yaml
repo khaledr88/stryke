@@ -1,0 +1,44 @@
+# Firebase App Hosting configuration for the STRYKE storefront + admin (Next.js).
+# Docs: https://firebase.google.com/docs/app-hosting/configure
+runConfig:
+  minInstances: 0
+  maxInstances: 10
+  concurrency: 80
+  cpu: 1
+  memoryMiB: 1024
+
+env:
+  # Public Firebase web config (safe to expose; security comes from rules + App Check).
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: REPLACE_ME
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: REPLACE_ME.firebaseapp.com
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: REPLACE_ME
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: REPLACE_ME.firebasestorage.app
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: REPLACE_ME
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: REPLACE_ME
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_FUNCTIONS_REGION
+    value: europe-west1
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_RECAPTCHA_ENTERPRISE_SITE_KEY
+    value: ""
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_SITE_URL
+    value: https://www.your-domain.com
+    availability: [BUILD, RUNTIME]
+  # Shared secret the Cloud Functions send to /api/revalidate. Create it with:
+  #   firebase apphosting:secrets:set REVALIDATE_SECRET
+  # and use the same value for the functions secret (firebase functions:secrets:set REVALIDATE_SECRET).
+  - variable: REVALIDATE_SECRET
+    secret: REVALIDATE_SECRET
+    availability: [RUNTIME]
