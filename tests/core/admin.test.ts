@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Firestore } from "firebase-admin/firestore";
-import { placeOrderCore } from "../src/orders/placeOrder";
-import { addOrderNoteCore, updateOrderStatusCore } from "../src/orders/manageOrder";
-import { deleteProductCore, duplicateProductCore, saveProductCore, setProductStatusCore } from "../src/products/manageProduct";
-import { adjustStockCore } from "../src/inventory/adjustStock";
-import { requireAdmin } from "../src/lib/guards";
-import { syncTaxonomyName } from "../src/triggers/taxonomySync";
+import { placeOrderCore } from "@core/orders/placeOrder";
+import { addOrderNoteCore, updateOrderStatusCore } from "@core/orders/manageOrder";
+import { deleteProductCore, duplicateProductCore, saveProductCore, setProductStatusCore } from "@core/products/manageProduct";
+import { adjustStockCore } from "@core/inventory/adjustStock";
+import { requireAdmin } from "@core/lib/guards";
+import { syncTaxonomyName } from "@core/triggers/taxonomySync";
 import { admin, newDb, orderInput, seedProduct, seedStore } from "./helpers";
 
 let db: Firestore;
@@ -48,9 +48,9 @@ async function variants(id: string) {
 
 describe("admin authorization", () => {
   it("requires the admin custom claim", () => {
-    expect(() => requireAdmin({ auth: undefined })).toThrowError(/administrator/);
-    expect(() => requireAdmin({ auth: { uid: "u", token: { email: "x@y.z" } } as never })).toThrowError(/not an administrator/);
-    expect(requireAdmin({ auth: { uid: "u", token: { admin: true, email: "a@b.c" } } as never })).toEqual({ uid: "u", email: "a@b.c" });
+    expect(() => requireAdmin(null)).toThrowError(/administrator/);
+    expect(() => requireAdmin({ uid: "u", token: { email: "x@y.z" } })).toThrowError(/not an administrator/);
+    expect(requireAdmin({ uid: "u", token: { admin: true, email: "a@b.c" } })).toEqual({ uid: "u", email: "a@b.c" });
   });
 });
 

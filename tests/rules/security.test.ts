@@ -1,5 +1,5 @@
 /**
- * Firestore and Storage security rules tests.
+ * Firestore security rules tests.
  * Run with the emulators:  npm run test:rules
  */
 import { readFileSync } from "node:fs";
@@ -7,7 +7,6 @@ import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, it } from "vitest";
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from "@firebase/rules-unit-testing";
 import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from "firebase/firestore";
-import { getBytes, ref, uploadBytes } from "firebase/storage";
 
 const root = path.resolve(import.meta.dirname, "../..");
 let env: RulesTestEnvironment;
@@ -16,7 +15,6 @@ beforeAll(async () => {
   env = await initializeTestEnvironment({
     projectId: "demo-stryke",
     firestore: { rules: readFileSync(path.join(root, "firestore.rules"), "utf8") },
-    storage: { rules: readFileSync(path.join(root, "storage.rules"), "utf8") },
   });
 });
 afterAll(async () => env?.cleanup());
@@ -92,18 +90,5 @@ describe("storefront content", () => {
     await assertFails(setDoc(doc(customer(), "storeSettings/main"), { ...valid, updatedBy: "someone" }));
     await assertSucceeds(setDoc(doc(admin(), "storeSettings/main"), valid));
     await assertFails(setDoc(doc(admin(), "storeSettings/main"), { ...valid, currency: "EUR" }));
-  });
-});
-
-describe("storage", () => {
-  const png = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
-  it("only admins upload images; anyone reads product images", async () => {
-    await assertFails(uploadBytes(ref(env.unauthenticatedContext().storage(), "products/p/1.png"), png, { contentType: "image/png" }));
-    await assertFails(uploadBytes(ref(env.authenticatedContext("someone").storage(), "products/p/1.png"), png, { contentType: "image/png" }));
-    const adminStorage = env.authenticatedContext("owner", { admin: true }).storage();
-    await assertSucceeds(uploadBytes(ref(adminStorage, "products/p/1.png"), png, { contentType: "image/png" }));
-    await assertFails(uploadBytes(ref(adminStorage, "products/p/evil.html"), png, { contentType: "text/html" }));
-    await assertFails(uploadBytes(ref(adminStorage, "private/p.png"), png, { contentType: "image/png" }));
-    await assertSucceeds(getBytes(ref(env.unauthenticatedContext().storage(), "products/p/1.png")));
   });
 });

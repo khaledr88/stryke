@@ -1,6 +1,6 @@
 "use client";
 
-import { getDownloadURL, ref, uploadBytesResumable } from "firebase/storage";
+import { upload } from "@vercel/blob/client";
 import type { StoredImage } from "@shared/types";
 import { firebase } from "@/lib/firebase/client";
 
@@ -27,17 +27,24 @@ async function prepare(file: File): Promise<{ blob: Blob; width: number; height:
   return { blob, width, height, type: "image/webp" };
 }
 
+/**
+ * Uploads a photo straight from the browser to Vercel Blob. The site's
+ * /api/admin/upload route only hands out an upload token to signed-in admins.
+ */
 export async function uploadImage(file: File, folder: string, onProgress?: (pct: number) => void): Promise<StoredImage> {
+  const user = firebase().auth.currentUser;
+  if (!user) throw new Error("Your session has ended. Sign in again.");
   const { blob, width, height, type } = await prepare(file);
   if (blob.size > 8 * 1024 * 1024) throw new Error(`${file.name} is larger than 8 MB after compression.`);
   const ext = type === "image/webp" ? "webp" : type.split("/")[1];
   const id = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : String(Date.now());
-  const path = `${folder.replace(/^\/+|\/+$/g, "")}/${id}.${ext}`;
-  const storageRef = ref(firebase().storage, path);
-  const task = uploadBytesResumable(storageRef, blob, { contentType: type, cacheControl: "public, max-age=31536000, immutable" });
-  await new Promise<void>((resolve, reject) => {
-    task.on("state_changed", (s) => onProgress?.(Math.round((s.bytesTransferred / s.totalBytes) * 100)), reject, () => resolve());
+  const pathname = `${folder.replace(/^\/+|\/+$/g, "")}/${id}.${ext}`;
+  const result = await upload(pathname, blob, {
+    access: "public",
+    contentType: type,
+    handleUploadUrl: "/api/admin/upload",
+    headers: { authorization: `Bearer ${await user.getIdToken()}` },
+    onUploadProgress: (e) => onProgress?.(Math.round(e.percentage)),
   });
-  const url = await getDownloadURL(storageRef);
-  return { path, url, alt: "", ...(width ? { width, height } : {}) };
+  return { path: result.pathname, url: result.url, alt: "", ...(width ? { width, height } : {}) };
 }

@@ -2,7 +2,7 @@ import { FirestoreMock } from "@firebase-bridge/firestore-admin";
 import type { Firestore } from "firebase-admin/firestore";
 import { Timestamp } from "firebase-admin/firestore";
 import { DEFAULT_SETTINGS } from "@shared/defaults";
-import type { Actor } from "../src/lib/guards";
+import type { Actor } from "@core/lib/guards";
 
 export const admin: Actor = { uid: "admin-1", email: "owner@stryke.test" };
 

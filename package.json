@@ -4,27 +4,27 @@
   "private": true,
   "description": "STRYKE \u2014 premium football & sportswear store (Next.js + Firebase)",
   "engines": {
-    "node": ">=24.12"
+    "node": "24.x"
   },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit && npm --prefix functions run typecheck",
-    "test": "vitest run && npm --prefix functions test",
-    "test:rules": "firebase emulators:exec --only firestore,storage --project demo-stryke \"vitest run --config vitest.rules.config.mts\"",
-    "functions:build": "npm --prefix functions run build",
-    "emulators": "npm run functions:build && firebase emulators:start --project demo-stryke --export-on-exit=./.emulator-data",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-stryke \"vitest run --config vitest.rules.config.mts\"",
+    "emulators": "firebase emulators:start --project demo-stryke --export-on-exit=./.emulator-data",
     "seed": "tsx scripts/seed.mts",
     "grant-admin": "node scripts/grant-admin.mjs",
-    "e2e": "NEXT_PUBLIC_USE_FIREBASE_EMULATORS=true NEXT_PUBLIC_FIREBASE_PROJECT_ID=demo-stryke next build && tsx scripts/e2e/run.mts",
-    "emulators:resume": "npm run functions:build && firebase emulators:start --project demo-stryke --import=./.emulator-data --export-on-exit=./.emulator-data"
+    "e2e": "next build && tsx scripts/e2e/run.mts",
+    "emulators:resume": "firebase emulators:start --project demo-stryke --import=./.emulator-data --export-on-exit=./.emulator-data"
   },
   "dependencies": {
     "@fontsource/barlow": "^5.3.0",
     "@fontsource/barlow-condensed": "^5.3.0",
     "@hookform/resolvers": "^5.9.1",
+    "@vercel/blob": "^2.8.1",
     "firebase": "^13.0.0",
     "firebase-admin": "^14.5.0",
     "lucide-react": "^1.54.0",
@@ -47,10 +47,8 @@
     "@types/node": "^22.10.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "esbuild": "^0.28.2",
     "eslint": "^9.39.0",
     "eslint-config-next": "16.4.0",
-    "firebase-functions": "^7.4.0",
     "firebase-tools": "^15.33.0",
     "puppeteer-core": "^25.13.0",
     "tailwindcss": "^4.3.3",

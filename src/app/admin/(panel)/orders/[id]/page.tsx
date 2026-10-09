@@ -12,7 +12,7 @@ import type { Order } from "@shared/types";
 import { Btn, Card, ConfirmDialog, ErrorBox, PageTitle, Spinner, StatusPill, TextArea, Toggle } from "@/components/admin/ui";
 import { adminApi } from "@/lib/admin/api";
 import { useLiveDoc } from "@/lib/admin/data";
-import { callableError, firebase } from "@/lib/firebase/client";
+import { apiError, firebase } from "@/lib/firebase/client";
 import { useUi } from "@/lib/store/ui";
 import { cn } from "@/lib/utils/cn";
 
@@ -38,7 +38,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       await adminApi.updateOrderStatus({ orderId: order!.id, status, ...extra });
       notify(`Order marked as ${ORDER_STATUS_LABELS[status].toLowerCase()}`);
     } catch (e) {
-      notify(callableError(e).message, "error");
+      notify(apiError(e).message, "error");
     } finally {
       setBusy(null);
     }
@@ -186,7 +186,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                   await adminApi.addOrderNote({ orderId: order.id, text: note.trim() });
                   setNote("");
                 } catch (err) {
-                  notify(callableError(err).message, "error");
+                  notify(apiError(err).message, "error");
                 } finally {
                   setBusy(null);
                 }

@@ -12,7 +12,7 @@ import { slugify, variantId } from "@shared/text";
 import type { Brand, Category, Club, Product, StoredImage } from "@shared/types";
 import { adminApi } from "@/lib/admin/api";
 import { useLiveQuery } from "@/lib/admin/data";
-import { callableError, firebase } from "@/lib/firebase/client";
+import { apiError, firebase } from "@/lib/firebase/client";
 import { useUi } from "@/lib/store/ui";
 import { cn } from "@/lib/utils/cn";
 import { ImagesField } from "./ImagesField";
@@ -169,7 +169,7 @@ export function ProductForm({ product }: { product: Product | null }) {
       setForm((f) => ({ ...f, slug: res.slug, baseline: { ...f.stock } }));
       setLoadedAt(res.updatedAt);
     } catch (err) {
-      const e = callableError(err);
+      const e = apiError(err);
       const fields = (e.details as { fields?: Record<string, string> } | undefined)?.fields;
       if (fields) setErrors(Object.fromEntries(Object.entries(fields).map(([k, v]) => [k.split(".")[0], v])));
       notify(e.message, "error");

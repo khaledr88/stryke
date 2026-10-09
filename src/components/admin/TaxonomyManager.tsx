@@ -19,7 +19,7 @@ import {
 import type { StoredImage } from "@shared/types";
 import { slugify } from "@shared/text";
 import { Modal } from "@/components/ui/Sheet";
-import { refreshStorefront } from "@/lib/admin/api";
+import { adminApi, refreshStorefront } from "@/lib/admin/api";
 import { useLiveQuery } from "@/lib/admin/data";
 import { firebase } from "@/lib/firebase/client";
 import { useUi } from "@/lib/store/ui";
@@ -68,8 +68,14 @@ export function TaxonomyManager<T extends BaseDoc>({ config }: { config: Taxonom
     const { id, ...data } = value;
     const docId = isNew ? data.slug : id;
     const payload = { ...data, updatedAt: serverTimestamp(), updatedBy: auth.currentUser?.uid ?? "" };
+    const before = isNew ? null : items.data.find((i) => i.id === docId);
     if (isNew) await setDoc(doc(db, config.collection, docId), { ...payload, createdAt: serverTimestamp() });
     else await updateDoc(doc(db, config.collection, docId), payload);
+    const newName = String(value[config.nameKey] ?? "");
+    if (config.usageField && before && String(before[config.nameKey] ?? "") !== newName) {
+      // Products keep a copy of the name for fast listings; update them too.
+      await adminApi.syncTaxonomyName({ collection: config.collection, id: docId, name: newName });
+    }
     await refreshStorefront([config.cacheTag]);
   }
 

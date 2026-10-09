@@ -4,6 +4,8 @@ import path from "node:path";
 const storageHosts = [
   { protocol: "https" as const, hostname: "firebasestorage.googleapis.com" },
   { protocol: "https" as const, hostname: "storage.googleapis.com" },
+  // Product photos uploaded from the admin (Vercel Blob)
+  { protocol: "https" as const, hostname: "*.public.blob.vercel-storage.com" },
   { protocol: "http" as const, hostname: "127.0.0.1", port: "9199" },
   { protocol: "http" as const, hostname: "localhost", port: "9199" },
 ];

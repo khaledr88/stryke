@@ -3,20 +3,16 @@
  *
  *   - An in-memory Firestore (real Admin SDK, @firebase-bridge/firestore-admin) stands in for the database.
  *   - The production Next.js build serves the storefront against it.
- *   - The real Cloud Functions handlers are mounted behind a tiny HTTP server that
- *     speaks the callable protocol, so the browser checkout calls them exactly as
- *     it would call the Functions emulator.
+ *   - Checkout and admin operations run through the app's own API routes / core
+ *     modules — the same code that runs on Vercel.
  *   - Headless Chromium drives the storefront like a customer and saves screenshots.
  *
- * Prerequisite: a build made with NEXT_PUBLIC_USE_FIREBASE_EMULATORS=true and
- * NEXT_PUBLIC_FIREBASE_PROJECT_ID=demo-stryke (see `npm run e2e`).
+ * Prerequisite: a production build (`npm run e2e` builds first).
  * Security rules are not exercised here — run `npm run test:rules` with the emulator.
  */
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { createServer } from "node:http";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
-import { createRequire } from "node:module";
-import { build } from "esbuild";
 import { FirestoreMock } from "@firebase-bridge/firestore-admin";
 import type { Firestore } from "firebase-admin/firestore";
 import chromium from "@sparticuz/chromium";
@@ -27,12 +23,10 @@ const ROOT = path.resolve(import.meta.dirname, "../..");
 const OUT = path.join(ROOT, ".e2e");
 const SHOTS = path.join(OUT, "screenshots");
 const PORT = 3100;
-const FN_PORT = 5001;
 const BASE = `http://127.0.0.1:${PORT}`;
 mkdirSync(SHOTS, { recursive: true });
 
 process.env.REVALIDATE_SECRET = "e2e-secret";
-process.env.STOREFRONT_URL = BASE;
 process.env.GCLOUD_PROJECT = "demo-stryke";
 process.env.NEXT_PUBLIC_SITE_URL = BASE;
 
@@ -62,47 +56,17 @@ await seedHomepage(db);
 await seedSampleProducts(db);
 console.log("Seeded taxonomy, settings, homepage and sample products");
 
-/* ------------------------------------------------------------ Functions */
-await build({
-  entryPoints: [path.join(ROOT, "functions/src/index.ts")],
-  outfile: path.join(OUT, "functions.cjs"),
-  bundle: true,
-  platform: "node",
-  format: "cjs",
-  target: "node22",
-  external: ["firebase-admin", "firebase-admin/*", "firebase-functions", "firebase-functions/*"],
-  alias: { "@shared": path.join(ROOT, "shared") },
-  logLevel: "warning",
-});
-const require = createRequire(import.meta.url);
-type Callable = { run: (req: unknown) => Promise<unknown> };
-const fns = require(path.join(OUT, "functions.cjs")) as Record<string, Callable>;
-const ADMIN_AUTH = { uid: "owner", token: { admin: true, email: "owner@stryke.test" } };
-const asAdmin = (name: string, data: unknown) => fns[name].run({ data, auth: ADMIN_AUTH, rawRequest: { headers: {}, ip: "127.0.0.1" } });
-
-const fnServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-  res.setHeader("access-control-allow-origin", "*");
-  res.setHeader("access-control-allow-headers", "*");
-  res.setHeader("access-control-allow-methods", "POST, OPTIONS");
-  if (req.method === "OPTIONS") return res.writeHead(204).end();
-  const name = (req.url ?? "").split("/").filter(Boolean).pop() ?? "";
-  const chunks: Buffer[] = [];
-  for await (const c of req) chunks.push(c as Buffer);
-  const body = JSON.parse(Buffer.concat(chunks).toString() || "{}");
-  const fn = fns[name];
-  if (!fn) return res.writeHead(404).end();
-  try {
-    // Browser requests are public: no auth context, like an anonymous customer.
-    const result = await fn.run({ data: body.data, rawRequest: { headers: req.headers, ip: req.socket.remoteAddress } });
-    res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ result }));
-  } catch (e) {
-    const err = e as { httpErrorCode?: { status: number }; toJSON?: () => unknown; message: string };
-    res
-      .writeHead(err.httpErrorCode?.status ?? 500, { "content-type": "application/json" })
-      .end(JSON.stringify({ error: err.toJSON ? err.toJSON() : { status: "INTERNAL", message: err.message } }));
-  }
-});
-await new Promise<void>((r) => fnServer.listen(FN_PORT, "127.0.0.1", r));
+/* ------------------------------------------------------- Core operations */
+const ADMIN = { uid: "owner", email: "owner@stryke.test" };
+const core = {
+  ...(await import("../../core/products/manageProduct")),
+  ...(await import("../../core/orders/manageOrder")),
+  ...(await import("../../core/orders/placeOrder")),
+};
+const asAdmin = (name: "saveProductCore" | "updateOrderStatusCore" | "addOrderNoteCore", data: unknown) =>
+  (core[name] as (db: Firestore, actor: typeof ADMIN, raw: unknown) => Promise<unknown>)(db, ADMIN, data);
+const post = (p: string, body: unknown, headers: Record<string, string> = {}) =>
+  fetch(BASE + p, { method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(body) });
 
 /* -------------------------------------------------------------- Next.js */
 const { default: next } = await import("next");
@@ -111,7 +75,7 @@ await app.prepare();
 const handle = app.getRequestHandler();
 const web = createServer((req, res) => handle(req, res));
 await new Promise<void>((r) => web.listen(PORT, "127.0.0.1", r));
-console.log(`Storefront on ${BASE}, functions on :${FN_PORT}\n`);
+console.log(`Storefront on ${BASE}\n`);
 
 const get = async (p: string) => {
   const r = await fetch(BASE + p);
@@ -135,7 +99,7 @@ try {
   check("Search index served", Array.isArray(search) && search.length === 8, `${search.length} products`);
 
   console.log("\nAdmin publishes a new Real Madrid jersey");
-  const saved = (await asAdmin("saveProduct", {
+  const saved = (await asAdmin("saveProductCore", {
     name: "Real Madrid 26/27 Away Jersey",
     brandId: "adidas",
     categoryId: "football-jerseys",
@@ -166,6 +130,8 @@ try {
     status: "published",
     customization: { enabled: true, price: 1500, nameMaxLength: 12, numberMin: 1, numberMax: 99 },
   })) as { id: string; slug: string };
+  // The /api/admin/saveProduct route does this after saving; do the same here.
+  await post("/api/revalidate", { tags: ["products"] }, { "x-revalidate-secret": "e2e-secret" });
   check("saveProduct returns id and slug", Boolean(saved.id) && saved.slug === "real-madrid-26-27-away-jersey", saved.slug);
   const pdp = await get(`/product/${saved.slug}`);
   check("New product page is live immediately", pdp.status === 200 && pdp.html.includes("Real Madrid 26/27 Away Jersey"));
@@ -175,37 +141,34 @@ try {
   check("Appears in the New Season collection", (await get("/collections/new-season")).html.includes("Real Madrid 26/27 Away Jersey"));
 
   console.log("\nSecurity checks on Cloud Functions");
-  await expectReject("Admin function without sign-in is refused", fns.saveProduct.run({ data: {}, rawRequest: { headers: {} } }), "unauthenticated");
-  await expectReject(
-    "Admin function for a non-admin user is refused",
-    fns.updateOrderStatus.run({ data: { orderId: "x", status: "confirmed" }, auth: { uid: "u", token: { email: "x@y.z" } }, rawRequest: { headers: {} } }),
-    "permission-denied",
-  );
-  const rv = await fetch(`${BASE}/api/revalidate`, { method: "POST", body: JSON.stringify({ tags: ["products"] }) });
+  const noToken = await post("/api/admin/saveProduct", {});
+  check("Admin API without sign-in is refused", noToken.status === 401, String(noToken.status));
+  const badToken = await post("/api/admin/updateOrderStatus", { orderId: "x", status: "confirmed" }, { authorization: "Bearer not-a-real-token" });
+  check("Admin API with an invalid token is refused", badToken.status === 401, String(badToken.status));
+  const upload = await post("/api/admin/upload", { type: "blob.generate-client-token", payload: { pathname: "products/x.png", callbackUrl: "", clientPayload: null, multipart: false } });
+  check("Photo upload tokens need an admin", upload.status === 401, String(upload.status));
+  const rv = await post("/api/revalidate", { tags: ["products"] });
   check("Cache refresh endpoint rejects unauthenticated calls", rv.status === 401, String(rv.status));
   const customer = { fullName: "Test Customer", phone: "71 000 111", governorate: "Beirut", city: "Achrafieh", street: "Main St", building: "B1" };
-  const placeRaw = (data: unknown, ip = "10.1.0.1") => fns.placeOrder.run({ data, rawRequest: { headers: {}, ip } });
-  await expectReject(
-    "Ordering more than in stock is refused",
-    placeRaw({ customer, lines: [{ productId: saved.id, variantId: "l", quantity: 2 }], paymentMethod: "cod", requestId: crypto.randomUUID() }),
-    "failed-precondition",
-  );
-  await expectReject(
-    "Ordering a sold-out size is refused",
-    placeRaw({ customer, lines: [{ productId: saved.id, variantId: "xl", quantity: 1 }], paymentMethod: "cod", requestId: crypto.randomUUID() }),
-    "failed-precondition",
-  );
-  await expectReject(
-    "Malformed checkout is refused",
-    placeRaw({ customer: { ...customer, phone: "abc" }, lines: [{ productId: saved.id, variantId: "s", quantity: 1 }], paymentMethod: "cod", requestId: crypto.randomUUID() }),
-    "invalid-argument",
-  );
-  const tampered = (await placeRaw(
+  const checkout = async (data: unknown, ip = "10.1.0.1") => {
+    const r = await post("/api/checkout", data, { "x-forwarded-for": ip });
+    const j = await r.json();
+    return { status: r.status, code: j.error?.code as string | undefined, message: j.error?.message as string | undefined, result: j.result };
+  };
+  const expectCheckoutError = async (name: string, data: unknown, code: string) => {
+    const r = await checkout(data);
+    check(name, r.code === code, `${r.status} ${r.code}: ${r.message}`);
+  };
+  await expectCheckoutError("Ordering more than in stock is refused", { customer, lines: [{ productId: saved.id, variantId: "l", quantity: 2 }], paymentMethod: "cod", requestId: crypto.randomUUID() }, "failed-precondition");
+  await expectCheckoutError("Ordering a sold-out size is refused", { customer, lines: [{ productId: saved.id, variantId: "xl", quantity: 1 }], paymentMethod: "cod", requestId: crypto.randomUUID() }, "failed-precondition");
+  await expectCheckoutError("Malformed checkout is refused", { customer: { ...customer, phone: "abc" }, lines: [{ productId: saved.id, variantId: "s", quantity: 1 }], paymentMethod: "cod", requestId: crypto.randomUUID() }, "invalid-argument");
+  const tamperedRes = await checkout(
     { customer, lines: [{ productId: saved.id, variantId: "s", quantity: 1, price: 1, unitPrice: 1 }], paymentMethod: "cod", requestId: crypto.randomUUID(), total: 1, deliveryFee: 0 },
     "10.1.0.2",
-  )) as { number: string; total: number };
-  check("Client-sent prices are ignored", tampered.total === 11000 + 300, `charged ${tampered.total}`);
-  await asAdmin("updateOrderStatus", { orderId: tampered.number, status: "cancelled", note: "test order" });
+  );
+  const tampered = tamperedRes.result as { number: string; total: number };
+  check("Client-sent prices are ignored", tampered?.total === 11000 + 300, `charged ${tampered?.total}`);
+  await asAdmin("updateOrderStatusCore", { orderId: tampered.number, status: "cancelled", note: "test order" });
   check("Cancelling restores stock", (await variants(saved.id)).s === 3);
 
   console.log("\nCustomer checkout in the browser");
@@ -276,13 +239,13 @@ try {
 
   console.log("\nAdmin manages the order through delivery");
   for (const status of ["confirmed", "preparing", "shipped", "delivered"]) {
-    await asAdmin("updateOrderStatus", { orderId: orderNumber, status });
+    await asAdmin("updateOrderStatusCore", { orderId: orderNumber, status });
   }
-  await asAdmin("addOrderNote", { orderId: orderNumber, text: "Delivered to customer, cash collected" });
+  await asAdmin("addOrderNoteCore", { orderId: orderNumber, text: "Delivered to customer, cash collected" });
   const done = (await db.doc(`orders/${orderNumber}`).get()).data();
   check("Order delivered and marked paid", done?.status === "delivered" && done?.payment?.status === "paid");
   check("Status history recorded", done?.statusHistory?.length === 5);
-  await expectReject("Delivered order cannot be cancelled", asAdmin("updateOrderStatus", { orderId: orderNumber, status: "cancelled" }), "failed-precondition");
+  await expectReject("Delivered order cannot be cancelled", asAdmin("updateOrderStatusCore", { orderId: orderNumber, status: "cancelled" }), "failed-precondition");
   const audit = await db.collection("adminAuditLogs").get();
   check("Admin actions written to the audit log", audit.size >= 7, `${audit.size} entries`);
 
@@ -309,6 +272,5 @@ try {
   console.log(`\n${results.length - failed.length}/${results.length} checks passed. Screenshots in .e2e/screenshots`);
   if (failed.length) exitCode = 1;
   web.close();
-  fnServer.close();
   process.exit(exitCode);
 }

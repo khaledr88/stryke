@@ -1,6 +1,6 @@
 import { randomInt } from "node:crypto";
 import { Timestamp, type Firestore } from "firebase-admin/firestore";
-import { HttpsError } from "firebase-functions/v2/https";
+import { AppError } from "../lib/errors";
 import { COL, ORDER_NUMBER_PREFIX, SETTINGS_DOC } from "@shared/constants";
 import { mergeSettings } from "@shared/settings";
 import { formatMoney } from "@shared/money";
@@ -36,10 +36,10 @@ export interface PlaceOrderContext {
  */
 export async function placeOrderCore(db: Firestore, raw: unknown, ctx: PlaceOrderContext): Promise<{ receipt: PlacedOrderReceipt; slugs: string[] }> {
   const input = parse(placeOrderSchema, raw);
-  if (input.company) throw new HttpsError("invalid-argument", "Invalid request.");
+  if (input.company) throw new AppError("invalid-argument", "Invalid request.");
 
   const phone = normalizePhone(input.customer.phone);
-  if (!phone) throw new HttpsError("invalid-argument", "Enter a valid phone number.", { fields: { "customer.phone": "Invalid phone" } });
+  if (!phone) throw new AppError("invalid-argument", "Enter a valid phone number.", { fields: { "customer.phone": "Invalid phone" } });
   const whatsapp = input.customer.whatsapp ? normalizePhone(input.customer.whatsapp) : null;
   const now = ctx.now ?? Date.now();
 
@@ -70,14 +70,14 @@ export async function placeOrderCore(db: Firestore, raw: unknown, ctx: PlaceOrde
 
     const priced = priceCart(input.lines, products as Map<string, PricingProduct>, settings, input.customer.governorate);
     if (priced.problems.length) {
-      throw new HttpsError("failed-precondition", priced.problems[0].message, { problems: priced.problems });
+      throw new AppError("failed-precondition", priced.problems[0].message, { problems: priced.problems });
     }
 
     // Pick an unused order number (collisions are astronomically rare, but checked).
     const candidates = [newOrderNumber(), newOrderNumber(), newOrderNumber()];
     const numberSnaps = await tx.getAll(...candidates.map((n) => db.collection(COL.orders).doc(n)));
     const freeIndex = numberSnaps.findIndex((s) => !s.exists);
-    if (freeIndex < 0) throw new HttpsError("aborted", "Please try again.");
+    if (freeIndex < 0) throw new AppError("aborted", "Please try again.");
     const number = candidates[freeIndex];
     const orderRef = db.collection(COL.orders).doc(number);
     const ts = Timestamp.fromMillis(now);

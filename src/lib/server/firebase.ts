@@ -4,12 +4,11 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 
 /**
- * Server-side Firebase Admin. On Firebase App Hosting credentials come from the
- * runtime service account automatically. Locally, the emulator env vars
- * (FIRESTORE_EMULATOR_HOST…) are enough; for a real project set
- * GOOGLE_APPLICATION_CREDENTIALS or FIREBASE_SERVICE_ACCOUNT_JSON.
+ * Server-side Firebase Admin. On Vercel, set FIREBASE_SERVICE_ACCOUNT_JSON to the
+ * service-account key (the whole JSON). Locally, the emulator env vars
+ * (FIRESTORE_EMULATOR_HOST…) are enough, or GOOGLE_APPLICATION_CREDENTIALS.
  */
-function app(): App {
+export function adminApp(): App {
   const existing = getApps()[0];
   if (existing) return existing;
   const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT;
@@ -29,7 +28,7 @@ let cached: Firestore | undefined;
 export function adminDb(): Firestore {
   if (globalThis.__strykeFirestore) return globalThis.__strykeFirestore;
   if (!cached) {
-    cached = getFirestore(app());
+    cached = getFirestore(adminApp());
     try {
       cached.settings({ ignoreUndefinedProperties: true });
     } catch {
@@ -40,5 +39,5 @@ export function adminDb(): Firestore {
 }
 
 export function adminAuth() {
-  return getAuth(app());
+  return getAuth(adminApp());
 }

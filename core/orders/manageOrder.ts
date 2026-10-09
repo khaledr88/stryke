@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { FieldValue, Timestamp, type Firestore } from "firebase-admin/firestore";
-import { HttpsError } from "firebase-functions/v2/https";
+import { AppError } from "../lib/errors";
 import { COL, ORDER_STATUS_LABELS, canTransition, type OrderStatus } from "@shared/constants";
 import { addOrderNoteSchema, updateOrderStatusSchema } from "@shared/schemas";
 import { plain } from "@shared/serialize";
@@ -15,12 +15,12 @@ export async function updateOrderStatusCore(db: Firestore, actor: Actor, raw: un
 
   return db.runTransaction(async (tx) => {
     const snap = await tx.get(orderRef);
-    if (!snap.exists) throw new HttpsError("not-found", "Order not found.");
+    if (!snap.exists) throw new AppError("not-found", "Order not found.");
     const order = plain<Order>(snap.data());
     const from = order.status as OrderStatus;
     const to = input.status;
     if (!canTransition(from, to)) {
-      throw new HttpsError(
+      throw new AppError(
         "failed-precondition",
         `An order that is ${ORDER_STATUS_LABELS[from].toLowerCase()} cannot be moved to ${ORDER_STATUS_LABELS[to].toLowerCase()}.`,
       );
@@ -91,7 +91,7 @@ export async function addOrderNoteCore(db: Firestore, actor: Actor, raw: unknown
   const note = { id: randomUUID(), text: input.text, by: actor.email ?? actor.uid, at: now };
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
-    if (!snap.exists) throw new HttpsError("not-found", "Order not found.");
+    if (!snap.exists) throw new AppError("not-found", "Order not found.");
     tx.update(ref, { internalNotes: FieldValue.arrayUnion(note), updatedAt: Timestamp.fromMillis(now) });
     auditInTx(db, tx, actor, { action: "order.note", target: { type: "order", id: input.orderId } });
   });

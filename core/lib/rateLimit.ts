@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { Timestamp, type Firestore } from "firebase-admin/firestore";
-import { HttpsError } from "firebase-functions/v2/https";
+import { AppError } from "./errors";
 import { COL } from "@shared/constants";
 
 export interface Limit {
@@ -30,7 +30,7 @@ export async function enforceRateLimits(db: Firestore, limits: Limit[], now = Da
       const inWindow = now - windowStart < limit.windowSeconds * 1000;
       const count = inWindow ? (snap.get("count") as number) : 0;
       if (count >= limit.max) {
-        throw new HttpsError(
+        throw new AppError(
           "resource-exhausted",
           "Too many orders were placed from this connection. Please wait a little and try again, or contact us on WhatsApp.",
         );

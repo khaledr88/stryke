@@ -11,7 +11,7 @@ import type { Brand, Category, Product, StoreSettings } from "@shared/types";
 import { Btn, Card, ConfirmDialog, Empty, ErrorBox, PageTitle, SelectInput, StatusPill, TextInput } from "@/components/admin/ui";
 import { adminApi } from "@/lib/admin/api";
 import { useLiveDoc, useLiveQuery } from "@/lib/admin/data";
-import { callableError, firebase } from "@/lib/firebase/client";
+import { apiError, firebase } from "@/lib/firebase/client";
 import { useUi } from "@/lib/store/ui";
 import { cn } from "@/lib/utils/cn";
 
@@ -51,7 +51,7 @@ export default function ProductsPage() {
       await fn();
       notify(done);
     } catch (e) {
-      notify(callableError(e).message, "error");
+      notify(apiError(e).message, "error");
     } finally {
       setBusy(null);
     }

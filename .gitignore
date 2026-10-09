@@ -1,6 +1,6 @@
 node_modules/
-functions/node_modules/
-functions/lib/
+
+
 .next/
 out/
 .env
@@ -15,4 +15,6 @@ service-account*.json
 *.tsbuildinfo
 next-env.d.ts
 .e2e/
-functions/.secret.local
+
+key.json
+.vercel/

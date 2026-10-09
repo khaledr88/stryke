@@ -11,7 +11,7 @@ import { Btn, Card, Empty, ErrorBox, FieldShell, PageTitle, SelectInput, StatCar
 import { Modal } from "@/components/ui/Sheet";
 import { adminApi } from "@/lib/admin/api";
 import { useLiveDoc, useLiveQuery } from "@/lib/admin/data";
-import { callableError, firebase } from "@/lib/firebase/client";
+import { apiError, firebase } from "@/lib/firebase/client";
 import { useUi } from "@/lib/store/ui";
 import { cn } from "@/lib/utils/cn";
 
@@ -200,7 +200,7 @@ function AdjustDialog({ target, onClose }: { target: { product: Product; variant
             notify("Stock updated");
             onClose();
           } catch (err) {
-            notify(callableError(err).message, "error");
+            notify(apiError(err).message, "error");
           } finally {
             setBusy(false);
           }

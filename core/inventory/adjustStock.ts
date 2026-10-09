@@ -1,5 +1,5 @@
 import { Timestamp, type Firestore } from "firebase-admin/firestore";
-import { HttpsError } from "firebase-functions/v2/https";
+import { AppError } from "../lib/errors";
 import { COL } from "@shared/constants";
 import { adjustStockSchema } from "@shared/schemas";
 import { auditInTx } from "../lib/audit";
@@ -12,11 +12,11 @@ export async function adjustStockCore(db: Firestore, actor: Actor, raw: unknown,
   const ref = db.collection(COL.products).doc(input.productId);
   return db.runTransaction(async (tx) => {
     const p = productFromSnap(await tx.get(ref));
-    if (!p) throw new HttpsError("not-found", "Product not found.");
+    if (!p) throw new AppError("not-found", "Product not found.");
     const v = p.variants.find((x) => x.id === input.variantId);
-    if (!v) throw new HttpsError("not-found", "That size no longer exists on this product.");
+    if (!v) throw new AppError("not-found", "That size no longer exists on this product.");
     const next = input.mode === "set" ? input.value : v.stock + input.value;
-    if (next < 0) throw new HttpsError("failed-precondition", `Stock cannot go below zero (currently ${v.stock}).`);
+    if (next < 0) throw new AppError("failed-precondition", `Stock cannot go below zero (currently ${v.stock}).`);
     const delta = next - v.stock;
     if (delta === 0) return { productId: p.id, variantId: v.id, stock: v.stock, slug: p.slug };
     const variants = p.variants.map((x) => (x.id === v.id ? { ...x, stock: next } : x));

@@ -15,7 +15,7 @@ import { Container } from "@/components/home/SectionHeading";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Wordmark } from "@/components/ui/Logo";
-import { callable, callableError } from "@/lib/firebase/client";
+import { apiError, apiPost } from "@/lib/firebase/client";
 import { cartCount, useCart } from "@/lib/store/cart";
 import { problemFor, useQuote } from "@/lib/store/useQuote";
 import { useMounted } from "@/lib/store/ui";
@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils/cn";
 const SAVED_DETAILS_KEY = "stryke-checkout-details";
 export const LAST_ORDER_KEY = "stryke-last-order";
 
-const placeOrder = callable<unknown, PlacedOrderReceipt>("placeOrder");
+const placeOrder = (data: unknown) => apiPost<PlacedOrderReceipt>("/api/checkout", data, { appCheck: true });
 
 interface Props {
   zones: { governorate: string; fee: number; eta: string }[];
@@ -106,7 +106,7 @@ export function CheckoutClient(props: Props) {
       clear();
       router.replace("/checkout/success");
     } catch (err) {
-      const e = callableError(err);
+      const e = apiError(err);
       const details = e.details as { problems?: PricingProblem[]; fields?: Record<string, string> } | undefined;
       if (details?.problems?.length) setServerProblems(details.problems);
       if (details?.fields) {

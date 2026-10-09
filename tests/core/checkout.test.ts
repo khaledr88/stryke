@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Firestore } from "firebase-admin/firestore";
-import { placeOrderCore } from "../src/orders/placeOrder";
+import { placeOrderCore } from "@core/orders/placeOrder";
 import { newDb, orderInput, seedProduct, seedStore, uuid } from "./helpers";
 
 let db: Firestore;

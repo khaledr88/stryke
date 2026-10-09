@@ -1,5 +1,5 @@
 import { Timestamp, type Firestore, type Transaction } from "firebase-admin/firestore";
-import { HttpsError } from "firebase-functions/v2/https";
+import { AppError } from "../lib/errors";
 import { buildVariants, isOnSale, stockStats } from "@shared/catalog";
 import { COL } from "@shared/constants";
 import { productIdSchema, productInputSchema, setProductStatusSchema } from "@shared/schemas";
@@ -17,7 +17,7 @@ async function uniqueSlug(db: Firestore, tx: Transaction, base: string, selfId: 
     const q = await tx.get(db.collection(COL.products).where("slug", "==", candidate).limit(2));
     if (q.docs.every((d) => d.id === selfId)) return candidate;
   }
-  throw new HttpsError("already-exists", "Could not find a free URL for this product. Set a custom URL slug.");
+  throw new AppError("already-exists", "Could not find a free URL for this product. Set a custom URL slug.");
 }
 
 /**
@@ -39,17 +39,17 @@ export async function saveProductCore(db: Firestore, actor: Actor, raw: unknown,
     ];
     const [existingSnap, brandSnap, categorySnap, clubSnap] = await tx.getAll(...refs);
     const existing = productFromSnap(existingSnap);
-    if (input.id && !existing) throw new HttpsError("not-found", "This product no longer exists.");
+    if (input.id && !existing) throw new AppError("not-found", "This product no longer exists.");
     if (existing && input.expectedUpdatedAt != null) {
       // Content edits conflict if someone saved after this form was loaded; stock is merged as deltas below.
       const stored = (existingSnap.get("contentUpdatedAt") as Timestamp | undefined)?.toMillis() ?? null;
       if (stored != null && stored > input.expectedUpdatedAt) {
-        throw new HttpsError("aborted", "Someone else saved this product while you were editing. Reload to see their changes.");
+        throw new AppError("aborted", "Someone else saved this product while you were editing. Reload to see their changes.");
       }
     }
-    if (!brandSnap.exists) throw new HttpsError("failed-precondition", "The selected brand no longer exists.");
-    if (!categorySnap.exists) throw new HttpsError("failed-precondition", "The selected category no longer exists.");
-    if (input.clubId && !clubSnap?.exists) throw new HttpsError("failed-precondition", "The selected club no longer exists.");
+    if (!brandSnap.exists) throw new AppError("failed-precondition", "The selected brand no longer exists.");
+    if (!categorySnap.exists) throw new AppError("failed-precondition", "The selected category no longer exists.");
+    if (input.clubId && !clubSnap?.exists) throw new AppError("failed-precondition", "The selected club no longer exists.");
     const brand = plain<Brand>(brandSnap.data());
     const category = plain<Category>(categorySnap.data());
     const club = input.clubId ? plain<Club>(clubSnap!.data()) : null;
@@ -143,9 +143,9 @@ export async function setProductStatusCore(db: Firestore, actor: Actor, raw: unk
   const ref = db.collection(COL.products).doc(input.productId);
   return db.runTransaction(async (tx) => {
     const p = productFromSnap(await tx.get(ref));
-    if (!p) throw new HttpsError("not-found", "Product not found.");
+    if (!p) throw new AppError("not-found", "Product not found.");
     if (input.status === "published" && p.images.length === 0) {
-      throw new HttpsError("failed-precondition", "Add at least one photo before publishing.");
+      throw new AppError("failed-precondition", "Add at least one photo before publishing.");
     }
     const ts = Timestamp.fromMillis(now);
     tx.update(ref, {
@@ -161,7 +161,7 @@ export async function setProductStatusCore(db: Firestore, actor: Actor, raw: unk
 export async function duplicateProductCore(db: Firestore, actor: Actor, raw: unknown, now = Date.now()) {
   const input = parse(productIdSchema, raw);
   const src = productFromSnap(await db.collection(COL.products).doc(input.productId).get());
-  if (!src) throw new HttpsError("not-found", "Product not found.");
+  if (!src) throw new AppError("not-found", "Product not found.");
   const ref = db.collection(COL.products).doc();
   const ts = Timestamp.fromMillis(now);
   return db.runTransaction(async (tx) => {
@@ -218,7 +218,7 @@ export async function deleteProductCore(db: Firestore, actor: Actor, raw: unknow
   const ref = db.collection(COL.products).doc(input.productId);
   const result = await db.runTransaction(async (tx) => {
     const p = productFromSnap(await tx.get(ref));
-    if (!p) throw new HttpsError("not-found", "Product not found.");
+    if (!p) throw new AppError("not-found", "Product not found.");
     tx.delete(ref);
     auditInTx(db, tx, actor, { action: "product.delete", target: { type: "product", id: p.id, label: p.name } });
     return { id: p.id, slug: p.slug, imagePaths: p.imagePaths ?? [] };
