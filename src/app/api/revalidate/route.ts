@@ -1,7 +1,7 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { timingSafeEqual } from "node:crypto";
 import { z } from "zod";
-import { adminAuth } from "@/lib/server/firebase";
+import { verifyIdToken } from "@/lib/server/tokens";
 
 const bodySchema = z.object({
   tags: z.array(z.string().min(1).max(200)).max(50).default([]),
@@ -19,7 +19,7 @@ function secretMatches(given: string | null): boolean {
 async function isAdminToken(header: string | null): Promise<boolean> {
   if (!header?.startsWith("Bearer ")) return false;
   try {
-    const decoded = await adminAuth().verifyIdToken(header.slice(7), true);
+    const decoded = await verifyIdToken(header.slice(7));
     return decoded.admin === true;
   } catch {
     return false;

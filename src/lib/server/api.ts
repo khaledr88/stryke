@@ -2,16 +2,15 @@ import "server-only";
 import { revalidateTag } from "next/cache";
 import { AppError } from "@core/lib/errors";
 import type { AuthContext } from "@core/lib/guards";
-import { adminAuth } from "./firebase";
+import { verifyIdToken } from "./tokens";
 
 /** Reads the Firebase ID token sent by the admin dashboard. Returns null when missing or invalid. */
 export async function authFromRequest(request: Request): Promise<AuthContext | null> {
   const header = request.headers.get("authorization");
   if (!header?.startsWith("Bearer ")) return null;
   try {
-    // checkRevoked: a revoked admin is locked out immediately.
-    const decoded = await adminAuth().verifyIdToken(header.slice(7), true);
-    return { uid: decoded.uid, token: decoded as unknown as Record<string, unknown> };
+    const decoded = await verifyIdToken(header.slice(7));
+    return { uid: decoded.sub, token: decoded as Record<string, unknown> };
   } catch {
     return null;
   }

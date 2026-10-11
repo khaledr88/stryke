@@ -1,6 +1,5 @@
 import "server-only";
 import { cert, getApps, initializeApp, type App } from "firebase-admin/app";
-import { getAuth } from "firebase-admin/auth";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 
 /**
@@ -36,8 +35,4 @@ export function adminDb(): Firestore {
     }
   }
   return cached;
-}
-
-export function adminAuth() {
-  return getAuth(adminApp());
 }

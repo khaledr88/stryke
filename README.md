@@ -87,7 +87,7 @@ You need: a GitHub account with this code pushed, a Google account, and **Node.j
 
 ### 4. Photo storage (Vercel Blob)
 
-Vercel → your project → **Storage → Create → Blob** → create it and **connect it to the project**. This adds `BLOB_READ_WRITE_TOKEN` automatically.
+Vercel → your project → **Storage → Create → Blob** → choose **Public** access → create it and **connect it to the project**. Vercel adds `BLOB_STORE_ID` and `BLOB_WEBHOOK_PUBLIC_KEY`; the site signs in to the store with Vercel OIDC, so there is **no token to copy**. (Older stores that add `BLOB_READ_WRITE_TOKEN` work too.) Redeploy after connecting.
 
 ### 5. Deploy
 
@@ -138,7 +138,7 @@ FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 node scripts/grant-admin.mjs you@exam
 npm run dev                                                   # terminal 3
 ```
 
-`--samples` adds clearly-labelled "[Sample]" products for testing (emulator only; the seed refuses to write them to a real project). Photo uploads need a `BLOB_READ_WRITE_TOKEN` even locally.
+`--samples` adds clearly-labelled "[Sample]" products for testing (emulator only; the seed refuses to write them to a real project). Photo uploads locally need Blob credentials: run `vercel env pull .env.local` (brings `BLOB_STORE_ID` and a temporary OIDC token) or set a `BLOB_READ_WRITE_TOKEN`.
 
 ---
 
@@ -220,8 +220,8 @@ firestore.rules, firestore.indexes.json, firebase.json, vercel.json
 
 - **Firestore rules**: the public can read only published products and visible taxonomy/content; orders, customer details, inventory logs and audit logs are admin-only; **no browser can write products, stock or orders** — only the server (Admin SDK). Admin edits to taxonomy/settings/homepage are shape-checked and stamped with who made them.
 - **Checkout**: Zod validation, honeypot, per-phone and per-IP rate limits (hashed, never stored raw), idempotency key, optional App Check (reCAPTCHA v3, free), server-side pricing and stock.
-- **Admin API**: every call verifies the Firebase ID token (revocation-checked) and the `admin` claim, and writes an audit log entry. Photo uploads get short-lived tokens only for admins, images only, ≤ 8 MB.
-- **Secrets** (`FIREBASE_SERVICE_ACCOUNT_JSON`, `BLOB_READ_WRITE_TOKEN`, `REVALIDATE_SECRET`, `CRON_SECRET`) live only in Vercel environment variables. `key.json` and `.env*` are git-ignored.
+- **Admin API**: every call verifies the Firebase ID token (signature, issuer, audience, expiry) and the `admin` claim, and writes an audit log entry. Photo uploads get a 15-minute presigned URL for one file, only for admins, images only, ≤ 8 MB, only inside image folders.
+- **Secrets** (`FIREBASE_SERVICE_ACCOUNT_JSON`, Blob credentials, `REVALIDATE_SECRET`, `CRON_SECRET`) live only in Vercel environment variables. `key.json` and `.env*` are git-ignored.
 - **Data minimisation**: no personal data in analytics; rate-limit and idempotency records expire and are purged daily. Decide how long to keep order addresses and state it in your privacy policy.
 
 ---

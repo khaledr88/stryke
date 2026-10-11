@@ -12,7 +12,7 @@ import type { Firestore } from "firebase-admin/firestore";
 
 /** Removes product photos from Vercel Blob once no product uses them. Best effort. */
 async function deleteImages(db: Firestore, paths: string[]) {
-  if (!process.env.BLOB_READ_WRITE_TOKEN || !paths.length) return;
+  if ((!process.env.BLOB_READ_WRITE_TOKEN && !process.env.BLOB_STORE_ID) || !paths.length) return;
   const safe = await unreferencedPaths(db, paths);
   if (safe.length) await del(safe).catch((e) => console.warn("Image delete failed", e));
 }

@@ -1,9 +1,9 @@
-import { getAppCheck } from "firebase-admin/app-check";
 import { CACHE_TAGS } from "@shared/constants";
 import { AppError } from "@core/lib/errors";
 import { placeOrderCore } from "@core/orders/placeOrder";
 import { clientIp, readJson, refresh, respond } from "@/lib/server/api";
-import { adminDb, adminApp } from "@/lib/server/firebase";
+import { adminDb } from "@/lib/server/firebase";
+import { verifyAppCheckToken } from "@/lib/server/tokens";
 
 /**
  * Guest Cash-on-Delivery checkout. Prices, delivery fee and stock are worked
@@ -16,7 +16,7 @@ export async function POST(request: Request) {
       const token = request.headers.get("x-firebase-appcheck");
       if (!token) throw new AppError("unauthenticated", "Please refresh the page and try again.");
       try {
-        await getAppCheck(adminApp()).verifyToken(token);
+        await verifyAppCheckToken(token);
       } catch {
         throw new AppError("unauthenticated", "Please refresh the page and try again.");
       }

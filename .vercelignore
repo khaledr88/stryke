@@ -1,0 +1,6 @@
+﻿key.json
+.env
+.env.local
+.e2e
+.next
+node_modules

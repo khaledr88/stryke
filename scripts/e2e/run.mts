@@ -145,7 +145,7 @@ try {
   check("Admin API without sign-in is refused", noToken.status === 401, String(noToken.status));
   const badToken = await post("/api/admin/updateOrderStatus", { orderId: "x", status: "confirmed" }, { authorization: "Bearer not-a-real-token" });
   check("Admin API with an invalid token is refused", badToken.status === 401, String(badToken.status));
-  const upload = await post("/api/admin/upload", { type: "blob.generate-client-token", payload: { pathname: "products/x.png", callbackUrl: "", clientPayload: null, multipart: false } });
+  const upload = await post("/api/admin/upload", { type: "blob.generate-presigned-url", payload: { pathname: "products/x.png", clientPayload: null, multipart: false } });
   check("Photo upload tokens need an admin", upload.status === 401, String(upload.status));
   const rv = await post("/api/revalidate", { tags: ["products"] });
   check("Cache refresh endpoint rejects unauthenticated calls", rv.status === 401, String(rv.status));
